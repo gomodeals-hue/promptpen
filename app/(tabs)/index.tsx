@@ -1,98 +1,252 @@
+import React, { useState, useMemo } from 'react';
+import {
+  StyleSheet,
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  Platform,
+  StatusBar,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { MasonryGrid } from '@/components/masonry-grid';
+import { CreatePromptModal } from '@/components/create-prompt-modal';
+import { usePromptContext } from '@/context/PromptContext';
+import { CATEGORIES } from '@/constants/prompts';
+import {
+  AccentRed,
+  DarkBackground,
+  DarkSurface,
+  DarkBorder,
+} from '@/constants/theme';
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const insets = useSafeAreaInsets();
+  const { prompts, openProductPage, toggleSave, addPrompt, showToast, userProfile } =
+    usePromptContext();
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Filter items according to category
+  const filteredPrompts = useMemo(() => {
+    if (selectedCategory === 'All') return prompts;
+    return prompts.filter(
+      p =>
+        p.category.toLowerCase() === selectedCategory.toLowerCase() ||
+        p.tags.some(t => t.toLowerCase().includes(selectedCategory.toLowerCase()))
+    );
+  }, [prompts, selectedCategory]);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    setTimeout(() => {
+      setRefreshing(false);
+      showToast('Feed refreshed', 'refresh');
+    }, 600);
+  };
+
+  const topInset = Math.max(insets.top, Platform.OS === 'ios' ? 44 : 28) + 8;
+  const bottomInset = Math.max(insets.bottom, 14) + 84;
+
+  const renderHeader = () => (
+    <View style={[styles.headerContainer, { paddingTop: topInset }]}>
+      {/* 1. Top Bar: App Logo Brand + Action Icons */}
+      <View style={styles.topBar}>
+        <View style={styles.topLeftGroup}>
+          <Pressable
+            style={styles.avatarBtn}
+            onPress={() => router.push('/(tabs)/profile' as any)}>
+            <Image
+              source={{ uri: userProfile.avatar }}
+              style={styles.avatarImg}
+              contentFit="cover"
+            />
+          </Pressable>
+
+          {/* Minimalist PromptPen Tag */}
+          <View style={styles.brandTag}>
+            <View style={styles.brandIconCircle}>
+              <Ionicons name="sparkles" size={12} color="#FFFFFF" />
+            </View>
+            <Text style={styles.brandTitle}>Prompt</Text>
+            <Text style={styles.brandAccent}>Pen</Text>
+          </View>
+        </View>
+
+        <View style={styles.topRightActions}>
+          <Pressable
+            style={styles.circleBtn}
+            onPress={() => router.push('/onboarding' as any)}>
+            <Ionicons name="compass-outline" size={20} color="#FFFFFF" />
+          </Pressable>
+
+          <Pressable
+            style={styles.circleBtn}
+            onPress={() => setIsCreateModalOpen(true)}>
+            <Ionicons name="add" size={22} color="#FFFFFF" />
+          </Pressable>
+        </View>
+      </View>
+
+      {/* 2. Sleek Horizontal Category Pills (Matching Image 1 & 4) */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.categoryScroll}>
+        {CATEGORIES.map((category) => {
+          const isSelected = selectedCategory === category;
+          return (
+            <Pressable
+              key={category}
+              style={[
+                styles.categoryPill,
+                isSelected && styles.categoryPillSelected,
+              ]}
+              onPress={() => setSelectedCategory(category)}>
+              <Text
+                style={[
+                  styles.categoryText,
+                  isSelected && styles.categoryTextSelected,
+                ]}>
+                {category}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+
+  return (
+    <View style={styles.screen}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+
+      {/* Masonry Feed */}
+      <MasonryGrid
+        items={filteredPrompts}
+        onItemPress={(item) => openProductPage(item)}
+        onSaveToggle={(item) => toggleSave(item)}
+        ListHeaderComponent={renderHeader()}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        contentContainerStyle={{ paddingBottom: bottomInset }}
+      />
+
+      {/* Create Modal */}
+      <CreatePromptModal
+        visible={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSubmit={addPrompt}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  screen: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  headerContainer: {
+    paddingBottom: 14,
+  },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  topLeftGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  avatarBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  avatarImg: {
+    width: '100%',
+    height: '100%',
+  },
+  brandTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  brandIconCircle: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: AccentRed,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 6,
+  },
+  brandTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  brandAccent: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  topRightActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  circleBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: DarkSurface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: DarkBorder,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  categoryScroll: {
+    gap: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  categoryPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.07)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  categoryPillSelected: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FFFFFF',
+  },
+  categoryText: {
+    color: '#9CA3AF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  categoryTextSelected: {
+    color: '#000000',
+    fontWeight: '800',
   },
 });
